@@ -12,6 +12,7 @@
 // - Debug module.
 // - SPI for driving LCD screen
 module ibex_demo_system #(
+  parameter int SysClkFreq   = 50_000_000,
   parameter int GpiWidth     = 8,
   parameter int GpoWidth     = 16,
   parameter int PwmWidth     = 12,
@@ -20,14 +21,32 @@ module ibex_demo_system #(
   input logic                 clk_sys_i,
   input logic                 rst_sys_ni,
 
+  input logic                 clk_usb_i,
+  input logic                 rst_usb_ni,
+
   input  logic [GpiWidth-1:0] gp_i,
   output logic [GpoWidth-1:0] gp_o,
+
   output logic [PwmWidth-1:0] pwm_o,
+
   input  logic                uart_rx_i,
   output logic                uart_tx_o,
+
   input  logic                spi_rx_i,
   output logic                spi_tx_o,
-  output logic                spi_sck_o
+  output logic                spi_sck_o,
+
+  output logic                usb_dp_o,
+  output logic                usb_dp_en_o,
+  output logic                usb_dn_o,
+  output logic                usb_dn_en_o,
+
+  input  logic                usb_dp_i,
+  input  logic                usb_dn_i,
+
+  input  logic                usb_sense_i,
+  output logic                usb_dp_pullup_o,
+  output logic                usb_dn_pullup_o
 );
   localparam logic [31:0] MEM_SIZE      = 64 * 1024; // 64 KiB
   localparam logic [31:0] MEM_START     = 32'h00100000;
@@ -58,6 +77,10 @@ module ibex_demo_system #(
   parameter logic [31:0] SPI_START      = 32'h80004000;
   parameter logic [31:0] SPI_MASK       = ~(SPI_SIZE-1);
 
+  localparam logic [31:0] USBDEV_SIZE   = 4 * 1024; // 4 KiB
+  localparam logic [31:0] USBDEV_START  = 32'h80005000;
+  localparam logic [31:0] USBDEV_MASK   = ~(USBDEV_SIZE-1);
+
   parameter logic [31:0] SIM_CTRL_SIZE  = 1 * 1024; // 1kB
   parameter logic [31:0] SIM_CTRL_START = 32'h20000;
   parameter logic [31:0] SIM_CTRL_MASK  = ~(SIM_CTRL_SIZE-1);
@@ -73,17 +96,19 @@ module ibex_demo_system #(
   } bus_host_e;
 
   typedef enum int {
-    Ram,
+    Ram = 0,
     Gpio,
     Pwm,
     Uart,
     Timer,
     Spi,
     SimCtrl,
+
+    // Must be last
     DbgDev
   } bus_device_e;
 
-  localparam int NrDevices = DBG ? 8 : 7;
+  localparam int NrDevices = DBG ? (1 + DbgDev) : DbgDev;
   localparam int NrHosts = DBG ? 2 : 1;
 
   // interrupts
@@ -110,6 +135,44 @@ module ibex_demo_system #(
   logic           device_rvalid [NrDevices];
   logic [31:0]    device_rdata  [NrDevices];
   logic           device_err    [NrDevices];
+
+  // requests to demo system bus
+  logic           host_req_bus      [NrHosts];
+
+  // responses from demo system bus
+  logic           host_gnt_bus      [NrHosts];
+  logic           host_rvalid_bus   [NrHosts];
+  logic [31:0]    host_rdata_bus    [NrHosts];
+  logic           host_err_bus      [NrHosts];
+
+  logic tlul_gnt_o;
+  logic tlul_rvalid_o;
+  logic [31:0] tlul_rdata_o;
+  logic tlul_err_o;
+
+  wire host_req_usbdev = host_req[CoreD] & ((host_addr[CoreD] & USBDEV_MASK) == USBDEV_START);
+
+  // TODO: quick hack - TL cannot provide an immediate response
+  always_comb begin
+    for (integer host = 0; host < NrHosts; host = host + 1) begin
+      if (host == CoreD) begin
+        bit usbdev_addr = ((host_addr[host] & USBDEV_MASK) == USBDEV_START);
+
+        host_req_bus[host] = host_req[host] & ~usbdev_addr;
+        host_gnt[host]     = tlul_gnt_o | host_gnt_bus[host];
+
+        host_rvalid[host]  = tlul_rvalid_o | host_rvalid_bus[host];
+        host_rdata[host]   = tlul_rvalid_o ? tlul_rdata_o : host_rdata_bus[host];
+        host_err[host]     = tlul_err_o | host_err_bus[host];
+      end else begin
+        host_req_bus[host] = host_req[host];
+        host_gnt[host]     = host_gnt_bus[host];
+        host_rvalid[host]  = host_rvalid_bus[host];
+        host_rdata[host]   = host_rdata_bus[host];
+        host_err[host]     = host_err_bus[host];      
+      end
+    end
+  end
 
   // Instruction fetch signals
   logic        core_instr_req;
@@ -179,15 +242,15 @@ module ibex_demo_system #(
     .clk_i               (clk_sys_i),
     .rst_ni              (rst_sys_ni),
 
-    .host_req_i          (host_req     ),
-    .host_gnt_o          (host_gnt     ),
+    .host_req_i          (host_req_bus ),
+    .host_gnt_o          (host_gnt_bus ),
     .host_addr_i         (host_addr    ),
     .host_we_i           (host_we      ),
     .host_be_i           (host_be      ),
     .host_wdata_i        (host_wdata   ),
-    .host_rvalid_o       (host_rvalid  ),
-    .host_rdata_o        (host_rdata   ),
-    .host_err_o          (host_err     ),
+    .host_rvalid_o       (host_rvalid_bus),
+    .host_rdata_o        (host_rdata_bus ),
+    .host_err_o          (host_err_bus   ),
 
     .device_req_o        (device_req   ),
     .device_addr_o       (device_addr  ),
@@ -350,7 +413,7 @@ module ibex_demo_system #(
   );
 
   uart #(
-    .ClockFrequency ( 50_000_000 )
+    .ClockFrequency (SysClkFreq)
   ) u_uart (
     .clk_i          (clk_sys_i),
     .rst_ni         (rst_sys_ni),
@@ -369,7 +432,7 @@ module ibex_demo_system #(
   );
 
   spi_top #(
-    .ClockFrequency(50_000_000),
+    .ClockFrequency(SysClkFreq),
     .CPOL(0),
     .CPHA(1)
   ) u_spi (
@@ -389,6 +452,119 @@ module ibex_demo_system #(
     .sck_o(spi_sck_o), // Serial clock pin
 
     .byte_data_o() // unused
+  );
+
+  tlul_pkg::tl_h2d_t tl_d_ibex2fifo;
+  tlul_pkg::tl_d2h_t tl_d_fifo2ibex;
+
+// TODO: still to be resolved - integrity generation and checking
+// alert handling
+  tlul_adapter_host #(
+    .MAX_REQS(2),
+    .EnableDataIntgGen(1'b1)
+  ) tl_adapter_host_d_ibex (
+    .clk_i        (clk_sys_i),
+    .rst_ni       (rst_sys_ni),
+    .req_i        (host_req_usbdev),
+    .instr_type_i (prim_mubi_pkg::MuBi4False),
+    .gnt_o        (tlul_gnt_o),
+    .addr_i       (host_addr[CoreD]),
+    .we_i         (host_we[CoreD]),
+    .wdata_i      (host_wdata[CoreD]),
+    .wdata_intg_i (7'b0),
+    .be_i         (host_be[CoreD]),
+    .valid_o      (tlul_rvalid_o),
+    .rdata_o      (tlul_rdata_o),
+    .rdata_intg_o (),
+    .err_o        (tlul_err_o),
+    .intg_err_o   (),
+    .tl_o         (tl_d_ibex2fifo),
+    .tl_i         (tl_d_fifo2ibex)
+  );
+
+  tlul_pkg::tl_h2d_t usb_tl_i;
+  tlul_pkg::tl_d2h_t usb_tl_o;
+
+  tlul_fifo_async #(
+  ) fifo_d (
+    .clk_h_i     (clk_sys_i),
+    .rst_h_ni    (rst_sys_ni),
+    .clk_d_i     (clk_usb_i),
+    .rst_d_ni    (rst_usb_ni),
+    .tl_h_i      (tl_d_ibex2fifo),
+    .tl_h_o      (tl_d_fifo2ibex),
+    .tl_d_o      (usb_tl_i),
+    .tl_d_i      (usb_tl_o)
+  );
+
+  usbdev #(
+    .Stub(1'b0)
+  ) u_usbdev (
+    .clk_i    (clk_usb_i),
+    .rst_ni   (rst_usb_ni),
+
+    // AON Wakeup functionality is not being used
+    .clk_aon_i  (clk_usb_i),
+    .rst_aon_ni (rst_usb_ni),
+
+    .tl_i       (usb_tl_i),
+    .tl_o       (usb_tl_o),
+
+    // Alerts are unused
+    .alert_rx_i (4'b0),
+    .alert_tx_o (),
+
+    // Data inputs
+    .cio_usb_dp_i     (usb_dp_i),
+    .cio_usb_dn_i     (usb_dn_i),
+    .usb_rx_d_i       (usb_dp_i),  // We have no external diff receiver
+
+    // Data outputs
+    .cio_usb_dp_o     (usb_dp_o),
+    .cio_usb_dp_en_o  (usb_dp_en_o),
+    .cio_usb_dn_o     (usb_dn_o),
+    .cio_usb_dn_en_o  (usb_dn_en_o),
+    .usb_tx_se0_o     (),
+    .usb_tx_d_o       (),
+ 
+    // Non-data I/O
+    .cio_sense_i        (usb_sense_i),
+    .usb_dp_pullup_o    (usb_dp_pullup_o),
+    .usb_dn_pullup_o    (usb_dn_pullup_o),
+    .usb_rx_enable_o    (),
+    .usb_tx_use_d_se0_o (),
+    
+    // Unused AON/Wakeup functionality
+    .usb_aon_suspend_req_o  (),
+    .usb_aon_wake_ack_o     (),
+
+    .usb_aon_bus_reset_i          (1'b0),
+    .usb_aon_sense_lost_i         (1'b0),
+    .usb_aon_wake_detect_active_i (1'b0),
+
+    .usb_ref_val_o    (),
+    .usb_ref_pulse_o  (),
+
+    .ram_cfg_i  ('b0),
+
+    // Interrupts not required
+    .intr_pkt_received_o    (),
+    .intr_pkt_sent_o        (),
+    .intr_powered_o         (),
+    .intr_disconnected_o    (),
+    .intr_host_lost_o       (),
+    .intr_link_reset_o      (),
+    .intr_link_suspend_o    (),
+    .intr_link_resume_o     (),
+    .intr_av_empty_o        (),
+    .intr_rx_full_o         (),
+    .intr_av_overflow_o     (),
+    .intr_link_in_err_o     (),
+    .intr_link_out_err_o    (),
+    .intr_rx_crc_err_o      (),
+    .intr_rx_pid_err_o      (),
+    .intr_rx_bitstuff_err_o (),
+    .intr_frame_o           ()
   );
 
   `ifdef VERILATOR

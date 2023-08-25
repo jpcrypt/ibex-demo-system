@@ -16,41 +16,77 @@ module top_artya7 (
   output              UART_TX,
   input               SPI_RX,
   output              SPI_TX,
-  output              SPI_SCK
+  output              SPI_SCK,
+  inout               USB_DP,
+  inout               USB_DN,
+  output              USB_PULLUP_EN,
+  input               USB_SENSE
 );
+  parameter int SysClkFreq = 50_000_000;
   parameter SRAMInitFile = "";
 
   logic clk_sys, rst_sys_n;
+  logic clk_usb, rst_usb_n;
+
+  wire usb_dp_i = USB_DP;
+  wire usb_dn_i = USB_DN;
+
+  wire usb_dp_o;
+  wire usb_dn_o;
+  wire usb_dp_en_o;
+  wire usb_dn_en_o;
+
+  assign USB_DP = usb_dp_en_o ? usb_dp_o : 1'bZ;
+  assign USB_DN = usb_dn_en_o ? usb_dn_o : 1'bZ;
 
   // Instantiating the Ibex Demo System.
   ibex_demo_system #(
+    .SysClkFreq(SysClkFreq),
     .GpiWidth(8),
     .GpoWidth(8),
     .PwmWidth(12),
     .SRAMInitFile(SRAMInitFile)
   ) u_ibex_demo_system (
-    //input
-    .clk_sys_i(clk_sys),
-    .rst_sys_ni(rst_sys_n),
-    .gp_i({SW, BTN}),
-    .uart_rx_i(UART_RX),
+    .clk_sys_i    (clk_sys),
+    .rst_sys_ni   (rst_sys_n),
 
-    //output
-    .gp_o({LED, DISP_CTRL}),
-    .pwm_o(RGB_LED),
-    .uart_tx_o(UART_TX),
+    .clk_usb_i    (clk_usb),
+    .rst_usb_ni   (rst_usb_n),
 
-    .spi_rx_i(SPI_RX),
-    .spi_tx_o(SPI_TX),
-    .spi_sck_o(SPI_SCK)
+    .gp_i         ({SW, BTN}),
+    .gp_o         ({LED, DISP_CTRL}),
+    .pwm_o        (RGB_LED),
+
+    .uart_rx_i    (UART_RX),
+    .uart_tx_o    (UART_TX),
+
+    .spi_rx_i     (SPI_RX),
+    .spi_tx_o     (SPI_TX),
+    .spi_sck_o    (SPI_SCK),
+
+    .usb_dp_o     (usb_dp_o),
+    .usb_dp_en_o  (usb_dp_en_o),
+    .usb_dn_o     (usb_dn_o),
+    .usb_dn_en_o  (usb_dn_en_o),
+
+    .usb_dp_i     (usb_dp_i),
+    .usb_dn_i     (usb_dn_i),
+
+    .usb_sense_i      (USB_SENSE),
+    .usb_dp_pullup_o  (USB_PULLUP_EN),
+    .usb_dn_pullup_o  ()
   );
 
   // Generating the system clock and reset for the FPGA.
-  clkgen_xil7series clkgen(
+  clkgen_xil7series #(
+    .SysClkFreq(SysClkFreq)
+  ) clkgen(
     .IO_CLK,
     .IO_RST_N,
     .clk_sys,
-    .rst_sys_n
+    .rst_sys_n,
+    .clk_usb,
+    .rst_usb_n
   );
 
 endmodule
