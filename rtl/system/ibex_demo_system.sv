@@ -12,13 +12,20 @@
 // - Debug module.
 // - SPI for driving LCD screen.
 module ibex_demo_system #(
+  parameter int SysClkFreq   = 50_000_000,
   parameter int GpiWidth     = 8,
   parameter int GpoWidth     = 16,
   parameter int PwmWidth     = 12,
   parameter     SRAMInitFile = ""
 ) (
-  input  logic clk_sys_i,
-  input  logic rst_sys_ni,
+  input logic                 clk_sys_i,
+  input logic                 rst_sys_ni,
+
+  input logic                 clk_usb_i,
+  input logic                 rst_usb_ni,
+
+  input logic                 clk_peri_i,
+  input logic                 rst_peri_ni,
 
   input  logic [GpiWidth-1:0] gp_i,
   output logic [GpoWidth-1:0] gp_o,
@@ -29,13 +36,32 @@ module ibex_demo_system #(
   output logic                spi_tx_o,
   output logic                spi_sck_o,
 
-  input  logic        tck_i,    // JTAG test clock pad
-  input  logic        tms_i,    // JTAG test mode select pad
-  input  logic        trst_ni,  // JTAG test reset pad
-  input  logic        td_i,     // JTAG test data input pad
-  output logic        td_o      // JTAG test data output pad
+  // I2C bus 0
+  input  logic                i2c0_scl_i,
+  output logic                i2c0_scl_o,
+  output logic                i2c0_scl_en_o,
+  input  logic                i2c0_sda_i,
+  output logic                i2c0_sda_o,
+  output logic                i2c0_sda_en_o,
+
+  // I2C bus 1
+  input  logic                i2c1_scl_i,
+  output logic                i2c1_scl_o,
+  output logic                i2c1_scl_en_o,
+  input  logic                i2c1_sda_i,
+  output logic                i2c1_sda_o,
+  output logic                i2c1_sda_en_o,
+
+  input  logic                tck_i,    // JTAG test clock pad
+  input  logic                tms_i,    // JTAG test mode select pad
+  input  logic                trst_ni,  // JTAG test reset pad
+  input  logic                td_i,     // JTAG test data input pad
+  output logic                td_o      // JTAG test data output pad
 );
-  localparam logic [31:0] MEM_SIZE      = 64 * 1024; // 64 KiB
+// Drive I2C1 rather than I2C0?
+// `define DRIVE_I2C1
+
+  localparam logic [31:0] MEM_SIZE      = 128 * 1024;  // 128 KiB
   localparam logic [31:0] MEM_START     = 32'h00100000;
   localparam logic [31:0] MEM_MASK      = ~(MEM_SIZE-1);
 
@@ -60,13 +86,17 @@ module ibex_demo_system #(
   localparam logic [31:0] PWM_MASK      = ~(PWM_SIZE-1);
   localparam int PwmCtrSize = 8;
 
-  parameter logic [31:0] SPI_SIZE       =  1 * 1024; //  1 KiB
-  parameter logic [31:0] SPI_START      = 32'h80004000;
-  parameter logic [31:0] SPI_MASK       = ~(SPI_SIZE-1);
+  localparam logic [31:0] SPI_SIZE       = 1 * 1024; // 1kB
+  localparam logic [31:0] SPI_START      = 32'h80004000;
+  localparam logic [31:0] SPI_MASK       = ~(SPI_SIZE-1);
 
-  parameter logic [31:0] SIM_CTRL_SIZE  =  1 * 1024; //  1 KiB
-  parameter logic [31:0] SIM_CTRL_START = 32'h20000;
-  parameter logic [31:0] SIM_CTRL_MASK  = ~(SIM_CTRL_SIZE-1);
+  localparam logic [31:0] USBDEV_SIZE   = 4 * 1024; // 4 KiB
+  localparam logic [31:0] USBDEV_START  = 32'h80005000;
+  localparam logic [31:0] USBDEV_MASK   = ~(USBDEV_SIZE-1);
+
+  localparam logic [31:0] SIM_CTRL_SIZE  = 1 * 1024; // 1kB
+  localparam logic [31:0] SIM_CTRL_START = 32'h20000;
+  localparam logic [31:0] SIM_CTRL_MASK  = ~(SIM_CTRL_SIZE-1);
 
   // Debug functionality is optional.
   localparam bit DBG = 1;
@@ -79,43 +109,83 @@ module ibex_demo_system #(
   } bus_host_e;
 
   typedef enum int {
-    Ram,
+    Ram = 0,
     Gpio,
     Pwm,
     Uart,
     Timer,
     Spi,
     SimCtrl,
+
+    // Must be last
     DbgDev
   } bus_device_e;
 
-  localparam int NrDevices = DBG ? 8 : 7;
-  localparam int NrHosts   = DBG ? 2 : 1;
+  localparam int NrDevices = DBG ? (1 + DbgDev) : DbgDev;
+  localparam int NrHosts = DBG ? 2 : 1;
 
   // Interrupts.
   logic timer_irq;
   logic uart_irq;
 
   // Host signals.
-  logic        host_req      [NrHosts];
-  logic        host_gnt      [NrHosts];
-  logic [31:0] host_addr     [NrHosts];
-  logic        host_we       [NrHosts];
-  logic [ 3:0] host_be       [NrHosts];
-  logic [31:0] host_wdata    [NrHosts];
-  logic        host_rvalid   [NrHosts];
-  logic [31:0] host_rdata    [NrHosts];
-  logic        host_err      [NrHosts];
+  logic           host_req      [NrHosts];
+  logic           host_gnt      [NrHosts];
+  logic [31:0]    host_addr     [NrHosts];
+  logic           host_we       [NrHosts];
+  logic [ 3:0]    host_be       [NrHosts];
+  logic [31:0]    host_wdata    [NrHosts];
+  logic           host_rvalid   [NrHosts];
+  logic [31:0]    host_rdata    [NrHosts];
+  logic           host_err      [NrHosts];
 
   // Device signals.
-  logic        device_req    [NrDevices];
-  logic [31:0] device_addr   [NrDevices];
-  logic        device_we     [NrDevices];
-  logic [ 3:0] device_be     [NrDevices];
-  logic [31:0] device_wdata  [NrDevices];
-  logic        device_rvalid [NrDevices];
-  logic [31:0] device_rdata  [NrDevices];
-  logic        device_err    [NrDevices];
+  logic           device_req    [NrDevices];
+  logic [31:0]    device_addr   [NrDevices];
+  logic           device_we     [NrDevices];
+  logic [ 3:0]    device_be     [NrDevices];
+  logic [31:0]    device_wdata  [NrDevices];
+  logic           device_rvalid [NrDevices];
+  logic [31:0]    device_rdata  [NrDevices];
+  logic           device_err    [NrDevices];
+
+  // requests to demo system bus
+  logic           host_req_bus      [NrHosts];
+
+  // responses from demo system bus
+  logic           host_gnt_bus      [NrHosts];
+  logic           host_rvalid_bus   [NrHosts];
+  logic [31:0]    host_rdata_bus    [NrHosts];
+  logic           host_err_bus      [NrHosts];
+
+  logic tlul_gnt_o;
+  logic tlul_rvalid_o;
+  logic [31:0] tlul_rdata_o;
+  logic tlul_err_o;
+
+  wire host_req_usbdev = host_req[CoreD] & ((host_addr[CoreD] & USBDEV_MASK) == USBDEV_START);
+
+  // TODO: quick hack - TL cannot provide an immediate response
+  always_comb begin
+    for (integer host = 0; host < NrHosts; host = host + 1) begin
+      if (host == CoreD) begin
+        bit usbdev_addr = ((host_addr[host] & USBDEV_MASK) == USBDEV_START);
+
+        host_req_bus[host] = host_req[host] & ~usbdev_addr;
+        host_gnt[host]     = tlul_gnt_o | host_gnt_bus[host];
+
+        host_rvalid[host]  = tlul_rvalid_o | host_rvalid_bus[host];
+        host_rdata[host]   = tlul_rvalid_o ? tlul_rdata_o : host_rdata_bus[host];
+        host_err[host]     = tlul_err_o | host_err_bus[host];
+      end else begin
+        host_req_bus[host] = host_req[host];
+        host_gnt[host]     = host_gnt_bus[host];
+        host_rvalid[host]  = host_rvalid_bus[host];
+        host_rdata[host]   = host_rdata_bus[host];
+        host_err[host]     = host_err_bus[host];      
+      end
+    end
+  end
 
   // Instruction fetch signals.
   logic        core_instr_req;
@@ -139,9 +209,9 @@ module ibex_demo_system #(
 
   // Internally generated resets cause IMPERFECTSCH warnings
   /* verilator lint_off IMPERFECTSCH */
-  logic rst_core_n;
-  logic ndmreset_req;
-  logic dm_debug_req;
+  logic        rst_core_n;
+  logic        ndmreset_req;
+  logic        dm_debug_req;
 
   // Device address mapping.
   logic [31:0] cfg_device_addr_base [NrDevices];
@@ -182,27 +252,27 @@ module ibex_demo_system #(
     .DataWidth    ( 32        ),
     .AddressWidth ( 32        )
   ) u_bus (
-    .clk_i (clk_sys_i),
-    .rst_ni(rst_sys_ni),
+    .clk_i               (clk_sys_i),
+    .rst_ni              (rst_sys_ni),
 
-    .host_req_i   (host_req     ),
-    .host_gnt_o   (host_gnt     ),
-    .host_addr_i  (host_addr    ),
-    .host_we_i    (host_we      ),
-    .host_be_i    (host_be      ),
-    .host_wdata_i (host_wdata   ),
-    .host_rvalid_o(host_rvalid  ),
-    .host_rdata_o (host_rdata   ),
-    .host_err_o   (host_err     ),
+    .host_req_i          (host_req_bus ),
+    .host_gnt_o          (host_gnt_bus ),
+    .host_addr_i         (host_addr    ),
+    .host_we_i           (host_we      ),
+    .host_be_i           (host_be      ),
+    .host_wdata_i        (host_wdata   ),
+    .host_rvalid_o       (host_rvalid_bus),
+    .host_rdata_o        (host_rdata_bus ),
+    .host_err_o          (host_err_bus   ),
 
-    .device_req_o   (device_req   ),
-    .device_addr_o  (device_addr  ),
-    .device_we_o    (device_we    ),
-    .device_be_o    (device_be    ),
-    .device_wdata_o (device_wdata ),
-    .device_rvalid_i(device_rvalid),
-    .device_rdata_i (device_rdata ),
-    .device_err_i   (device_err   ),
+    .device_req_o        (device_req   ),
+    .device_addr_o       (device_addr  ),
+    .device_we_o         (device_we    ),
+    .device_be_o         (device_be    ),
+    .device_wdata_o      (device_wdata ),
+    .device_rvalid_i     (device_rvalid),
+    .device_rdata_i      (device_rdata ),
+    .device_err_i        (device_err   ),
 
     .cfg_device_addr_base,
     .cfg_device_addr_mask
@@ -356,10 +426,10 @@ module ibex_demo_system #(
   );
 
   uart #(
-    .ClockFrequency ( 50_000_000 )
+    .ClockFrequency (SysClkFreq)
   ) u_uart (
-    .clk_i (clk_sys_i),
-    .rst_ni(rst_sys_ni),
+    .clk_i          (clk_sys_i),
+    .rst_ni         (rst_sys_ni),
 
     .device_req_i   (device_req[Uart]),
     .device_addr_i  (device_addr[Uart]),
@@ -375,7 +445,7 @@ module ibex_demo_system #(
   );
 
   spi_top #(
-    .ClockFrequency ( 50_000_000 ),
+    .ClockFrequency ( SysClkFreq ),
     .CPOL           ( 0          ),
     .CPHA           ( 1          )
   ) u_spi (
@@ -396,6 +466,104 @@ module ibex_demo_system #(
 
     .byte_data_o() // Unused.
   );
+
+  tlul_pkg::tl_h2d_t tl_d_ibex2fifo;
+  tlul_pkg::tl_d2h_t tl_d_fifo2ibex;
+
+  tlul_adapter_host #(
+    .MAX_REQS(2),
+    .EnableDataIntgGen(1'b1)
+  ) tl_adapter_host_d_ibex (
+    .clk_i        (clk_sys_i),
+    .rst_ni       (rst_sys_ni),
+    .req_i        (host_req_usbdev),
+    .instr_type_i (prim_mubi_pkg::MuBi4False),
+    .gnt_o        (tlul_gnt_o),
+    .addr_i       (host_addr[CoreD]),
+    .we_i         (host_we[CoreD]),
+    .wdata_i      (host_wdata[CoreD]),
+    .wdata_intg_i (7'b0),
+    .be_i         (host_be[CoreD]),
+    .valid_o      (tlul_rvalid_o),
+    .rdata_o      (tlul_rdata_o),
+    .rdata_intg_o (),
+    .err_o        (tlul_err_o),
+    .intg_err_o   (),
+    .tl_o         (tl_d_ibex2fifo),
+    .tl_i         (tl_d_fifo2ibex)
+  );
+
+  tlul_pkg::tl_h2d_t usb_tl_i;
+  tlul_pkg::tl_d2h_t usb_tl_o;
+
+  tlul_fifo_async #(
+    .ReqDepth        (1),
+    .RspDepth        (1)
+  ) fifo_d (
+    .clk_h_i     (clk_sys_i),
+    .rst_h_ni    (rst_sys_ni),
+    .clk_d_i     (clk_peri_i),
+    .rst_d_ni    (rst_peri_ni),
+    .tl_h_i      (tl_d_ibex2fifo),
+    .tl_h_o      (tl_d_fifo2ibex),
+    .tl_d_o      (usb_tl_i),
+    .tl_d_i      (usb_tl_o)
+  );
+
+  i2c u_i2c(
+    .clk_i                    (clk_peri_i),
+    .rst_ni                   (rst_peri_ni),
+
+    // TODO: temporarily replaces u_usbdev
+    .tl_i                     (usb_tl_i),
+    .tl_o                     (usb_tl_o),
+
+    // Alerts are unused
+    .alert_rx_i               (4'b0),
+    .alert_tx_o               (),
+
+`ifdef DRIVE_I2C1
+    .cio_scl_i                (i2c1_scl_i),
+    .cio_scl_o                (i2c1_scl_o),
+    .cio_scl_en_o             (i2c1_scl_en_o),
+    .cio_sda_i                (i2c1_sda_i),
+    .cio_sda_o                (i2c1_sda_o),
+    .cio_sda_en_o             (i2c1_sda_en_o),
+`else
+    .cio_scl_i                (i2c0_scl_i),
+    .cio_scl_o                (i2c0_scl_o),
+    .cio_scl_en_o             (i2c0_scl_en_o),
+    .cio_sda_i                (i2c0_sda_i),
+    .cio_sda_o                (i2c0_sda_o),
+    .cio_sda_en_o             (i2c0_sda_en_o),
+`endif
+
+    .intr_fmt_threshold_o     (),
+    .intr_rx_threshold_o      (),
+    .intr_fmt_overflow_o      (),
+    .intr_rx_overflow_o       (),
+    .intr_nak_o               (),
+    .intr_scl_interference_o  (),
+    .intr_sda_interference_o  (),
+    .intr_stretch_timeout_o   (),
+    .intr_sda_unstable_o      (),
+    .intr_cmd_complete_o      (),
+    .intr_tx_stretch_o        (),
+    .intr_tx_overflow_o       (),
+    .intr_acq_full_o          (),
+    .intr_unexp_stop_o        (),
+    .intr_host_timeout_o      ()
+  );
+
+// Feed all I2C traffic to the other port as a pure output (always enabled) since this allows
+// us very easily to attach the logic analyser.
+`ifdef DRIVE_I2C1
+assign {i2c0_scl_o, i2c0_scl_en_o, i2c0_sda_o, i2c0_sda_en_o} =
+       {i2c1_scl_i, 1'b1, i2c1_sda_i, 1'b1};
+`else
+assign {i2c1_scl_o, i2c1_scl_en_o, i2c1_sda_o, i2c1_sda_en_o} =
+       {i2c0_scl_i, 1'b1, i2c0_sda_i, 1'b1};
+`endif
 
   `ifdef VERILATOR
     simulator_ctrl #(

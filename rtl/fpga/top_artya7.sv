@@ -20,8 +20,20 @@ module top_artya7 #(
   output        SPI_TX,
   output        SPI_SCK
 );
+  parameter int SysClkFreq = 50_000_000;
 
   logic clk_sys, rst_sys_n;
+
+  // No support for USBDEV or I2C presently.
+  wire clk_usb = 1'b0;
+  wire rst_usb_n = rst_sys_n;
+  wire clk_peri = 1'b0;
+  wire rst_peri_n = rst_sys_n;
+
+  wire scl0_i = 1'b1;
+  wire sda0_i = 1'b1;
+  wire scl1_i = 1'b1;
+  wire sda1_i = 1'b1;
 
   // Instantiating the Ibex Demo System.
   ibex_demo_system #(
@@ -33,8 +45,15 @@ module top_artya7 #(
     //input
     .clk_sys_i (clk_sys),
     .rst_sys_ni(rst_sys_n),
-    .gp_i      ({SW, BTN}),
-    .uart_rx_i (UART_RX),
+
+    .clk_usb_i    (clk_usb),
+    .rst_usb_ni   (rst_usb_n),
+
+    .clk_peri_i   (clk_peri),
+    .rst_peri_ni  (rst_peri_n),
+
+    .gp_i({SW, BTN}),
+    .uart_rx_i(UART_RX),
 
     //output
     .gp_o     ({LED, DISP_CTRL}),
@@ -44,6 +63,22 @@ module top_artya7 #(
     .spi_rx_i (SPI_RX),
     .spi_tx_o (SPI_TX),
     .spi_sck_o(SPI_SCK),
+
+    // I2C bus 0
+    .i2c0_scl_i       (scl0_i),
+    .i2c0_scl_o       (),
+    .i2c0_scl_en_o    (),
+    .i2c0_sda_i       (sda0_i),
+    .i2c0_sda_o       (),
+    .i2c0_sda_en_o    (),
+
+    // I2C bus 1
+    .i2c1_scl_i       (scl1_i),
+    .i2c1_scl_o       (),
+    .i2c1_scl_en_o    (),
+    .i2c1_sda_i       (sda1_i),
+    .i2c1_sda_o       (),
+    .i2c1_sda_en_o    (),
 
     .trst_ni(1'b1),
     .tms_i  (1'b0),

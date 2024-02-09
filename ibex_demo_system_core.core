@@ -8,6 +8,9 @@ filesets:
   files_rtl_demo_system:
     depend:
       - lowrisc:ibex:ibex_top
+      - lowrisc:ip:i2c
+      - lowrisc:tlul:adapter_host
+      - lowrisc:tlul:adapter_reg
       - pulp:riscv:debug_module
     files:
       - rtl/system/jtag_id_pkg.sv
