@@ -15,6 +15,8 @@
 
 #define SPI0_BASE 0x80004000
 
+#define USBDEV_BASE 0x80005000
+
 #define SIM_CTRL_BASE 0x20000
 #define SIM_CTRL_OUT 0x0
 #define SIM_CTRL_CTRL 0x8
