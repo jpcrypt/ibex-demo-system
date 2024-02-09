@@ -5,9 +5,10 @@
 adapter driver ftdi
 transport select jtag
 
-ftdi_vid_pid 0x0403 0x6011
-ftdi_channel 1
-ftdi_layout_init 0x0088 0x008b
+ftdi vid_pid 0x0403 0x6011
+ftdi channel 1
+ftdi layout_init 0x0088 0x008b
+ftdi tdo_sample_edge falling
 reset_config none
 
 # Configure JTAG chain and the target processor
@@ -22,7 +23,6 @@ target create $_TARGETNAME riscv -chain-position $_TARGETNAME
 
 adapter speed 10000
 
-riscv set_prefer_sba on
 gdb_report_data_abort enable
 gdb_report_register_access_error enable
 gdb_breakpoint_override hard
