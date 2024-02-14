@@ -54,9 +54,11 @@ int main(void) {
     // Dump out the contents of the I2C registers
     dump_regs(I2C0_BASE);
 
+#if 0
     // Hang around for a couple of seconds
     uint64_t end_time = timer_read() + 2 * 50 * 1000 * 1000;
     while (timer_read() < end_time);
+#endif
   }
 
   return 0;

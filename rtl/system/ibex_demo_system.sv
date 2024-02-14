@@ -20,13 +20,13 @@ module ibex_demo_system #(
 ) (
   input logic                 clk_sys_i,
   input logic                 rst_sys_ni,
-
+`ifndef VERILATOR
   input logic                 clk_usb_i,
   input logic                 rst_usb_ni,
 
   input logic                 clk_peri_i,
   input logic                 rst_peri_ni,
-
+`endif
   input  logic [GpiWidth-1:0] gp_i,
   output logic [GpoWidth-1:0] gp_o,
   output logic [PwmWidth-1:0] pwm_o,
@@ -60,6 +60,17 @@ module ibex_demo_system #(
 );
 // Drive I2C1 rather than I2C0?
 // `define DRIVE_I2C1
+
+`ifdef VERILATOR
+  logic clk_usb_i;
+  logic clk_peri_i;
+  logic rst_usb_ni;
+  logic rst_peri_ni;
+  assign clk_usb_i   = clk_sys_i;
+  assign clk_peri_i  = clk_sys_i;
+  assign rst_usb_ni  = rst_sys_ni;
+  assign rst_peri_ni = rst_sys_ni;
+`endif
 
   localparam logic [31:0] MEM_SIZE      = 128 * 1024;  // 128 KiB
   localparam logic [31:0] MEM_START     = 32'h00100000;
@@ -560,9 +571,15 @@ module ibex_demo_system #(
 `ifdef DRIVE_I2C1
 assign {i2c0_scl_o, i2c0_scl_en_o, i2c0_sda_o, i2c0_sda_en_o} =
        {i2c1_scl_i, 1'b1, i2c1_sda_i, 1'b1};
+
+logic unused;
+assign unused = ^{clk_usb_i, rst_usb_ni, i2c0_scl_i, i2c0_sda_i};
 `else
 assign {i2c1_scl_o, i2c1_scl_en_o, i2c1_sda_o, i2c1_sda_en_o} =
        {i2c0_scl_i, 1'b1, i2c0_sda_i, 1'b1};
+
+logic unused;
+assign unused = ^{clk_usb_i, rst_usb_ni, i2c1_scl_i, i2c1_sda_i};
 `endif
 
   `ifdef VERILATOR

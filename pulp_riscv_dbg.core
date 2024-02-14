@@ -19,7 +19,6 @@ filesets:
       - vendor/pulp_riscv_dbg/src/dm_mem.sv
       - vendor/pulp_riscv_dbg/src/dmi_cdc.sv
       - vendor/pulp_riscv_dbg/src/dmi_jtag.sv
-      - vendor/lowrisc_ip/ip/prim/rtl/prim_sync_reqack.sv
     file_type: systemVerilogSource
 
   files_xilinx_bscane_tap:
