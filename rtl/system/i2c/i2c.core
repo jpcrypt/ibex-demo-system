@@ -19,6 +19,7 @@ filesets:
       - rtl/i2c_core.sv
       - rtl/i2c_fsm.sv
       - rtl/i2c.sv
+      - rtl/newreg.sv
     file_type: systemVerilogSource
 
   files_verilator_waiver:
@@ -58,7 +59,7 @@ targets:
       - tool_ascentlint  ? (files_ascentlint_waiver)
       - tool_veriblelint ? (files_veriblelint_waiver)
       - files_rtl
-    toplevel: i2c
+    toplevel: newreg
 
   lint:
     <<: *default_target

@@ -15,10 +15,7 @@ set clks_usb_unbuf  [get_clocks -of_objects [get_pin clkgen/pll/CLKOUT1]]
 set_clock_groups -group ${clks_sys_unbuf} -group ${clks_peri_unbuf} -group ${clks_usb_unbuf} -group mainclk -asynchronous
 
 ## Reset
-# rev 0.3+
-set_property PACKAGE_PIN T5 [get_ports {nrst_btn}]
-# rev <= 0.2
-# set_property PACKAGE_PIN R11 [get_ports {nrst_btn}]
+set_property PACKAGE_PIN R11 [get_ports {nrst_btn}]
 set_property IOSTANDARD LVCMOS33 [get_ports {nrst_btn}]
 
 ## General purpose LEDs
@@ -31,10 +28,8 @@ set_property -dict { PACKAGE_PIN A11 IOSTANDARD LVCMOS33 } [get_ports {led_user[
 set_property -dict { PACKAGE_PIN F13 IOSTANDARD LVCMOS33 } [get_ports {led_user[6]}];
 set_property -dict { PACKAGE_PIN F14 IOSTANDARD LVCMOS33 } [get_ports {led_user[7]}];
 
-## USR JTAG - rev 0.3+
-set_property -dict { PACKAGE_PIN E15 IOSTANDARD LVCMOS33 } [get_ports tck_i];
-## USR JTAG - rev <= 0.2
-# set_property -dict { PACKAGE_PIN H17 IOSTANDARD LVCMOS33 } [get_ports tck_i];
+## JTAG test
+set_property -dict { PACKAGE_PIN H17 IOSTANDARD LVCMOS33 } [get_ports tck_i];
 set_property -dict { PACKAGE_PIN G17 IOSTANDARD LVCMOS33 } [get_ports td_i];
 set_property -dict { PACKAGE_PIN J14 IOSTANDARD LVCMOS33 } [get_ports td_o];
 set_property -dict { PACKAGE_PIN H15 IOSTANDARD LVCMOS33 } [get_ports tms_i];
@@ -113,15 +108,12 @@ set_property IOSTANDARD LVCMOS33 [get_ports MB6]
 # GPIO/I2C bus
 set_property PACKAGE_PIN L13 [get_ports RPH_G2_SDA]
 set_property IOSTANDARD LVCMOS33 [get_ports RPH_G2_SDA]
-set_property PACKAGE_PIN M16 [get_ports RPH_G3_SCL]
-# set_property PACKAGE_PIN K18 [get_ports RPH_G3_SCL]
+set_property PACKAGE_PIN K18 [get_ports RPH_G3_SCL]
 set_property IOSTANDARD LVCMOS33 [get_ports RPH_G3_SCL]
 
 # I2C - Enable the internal pull-up resistors, if there are no external resistors on the PCB.
-# for the rev <= 0.2 boards
-# set_property PULLUP true [get_ports RPH_G2_SDA]
-# set_property PULLUP true [get_ports RPH_G3_SCL]
-# rev 0.5+ have on-board pull ups
+set_property PULLUP true [get_ports RPH_G2_SDA]
+set_property PULLUP true [get_ports RPH_G3_SCL]
 
 # ID_SC/SD - I2C bus for HAT ID EEPROM; pull-ups are on the HAT itself
 set_property PACKAGE_PIN T15 [get_ports RPH_G1]

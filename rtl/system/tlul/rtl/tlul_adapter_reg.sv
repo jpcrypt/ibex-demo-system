@@ -234,4 +234,29 @@ module tlul_adapter_reg
 
   `ASSERT_INIT(MatchedWidthAssert, RegDw == top_pkg::TL_DW)
 
+
+ila_tl U_ila_tl (
+	.clk            (clk_i),
+	.probe0         (intg_error_o),
+	.probe1         (re_o),
+	.probe2         (we_o),
+	.probe3         (addr_o),               // 6:0
+	.probe4         (wdata_o),              // 31:0
+	.probe5         (be_o),                 // 3:0
+	.probe6         (busy_i),
+	.probe7         (rdata_i),              // 31:0
+	.probe8         (error_i),
+	.probe9         (addr_align_err),
+	.probe10        (malformed_meta_err),
+	.probe11        (tl_err),
+	.probe12        (tl_i.a_valid),
+	.probe13        (tl_i.d_ready),
+	.probe14        (tl_i.a_opcode),        //2:0
+	.probe15        (tl_i.a_data),          // 31:0
+	.probe16        (tl_i.a_address),       // 31:0?
+	.probe17        (tl_i.a_source),        // 31:0?
+	.probe18        (tl_i.a_size)           // 3:0
+);
+  
+
 endmodule
