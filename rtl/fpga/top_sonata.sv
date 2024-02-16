@@ -37,6 +37,14 @@ module top_sonata (
   output logic ser0_tx,
   input  logic ser0_rx,
 
+  // HyperRAM:
+  inout  wire [7:0]           HYPERRAM_DQ,
+  inout  wire                 HYPERRAM_RWDS,
+  output wire                 HYPERRAM_CKP,
+  output wire                 HYPERRAM_CKN,
+  output wire                 HYPERRAM_nRST,
+  output wire                 HYPERRAM_CS,
+
   // I2C buses
 `ifdef DRIVE_RPIHAT
   output logic       SCL0,
@@ -78,6 +86,20 @@ module top_sonata (
 
   logic [4:0] nav_sw_n;
   logic [7:0] user_sw_n;
+
+  logic clk_hr;
+  logic clk_hr90p;
+  logic clk_hr3x;
+  logic rst_hr;
+  logic hb;
+  logic hb90p;
+  logic hb3x;
+  logic locked;
+  logic hr_pass;
+  logic hr_fail;
+
+  logic [7:0] led_user_unused;
+  assign led_user = {hr_pass, hr_fail, 2'b00, hb3x, hb90p, hb, locked};
 
   initial begin
     reset_counter = 0;
@@ -223,8 +245,15 @@ module top_sonata (
     .clk_peri_i   (clk_peri),
     .rst_peri_ni  (rst_peri_n),
 
+    .clk_hr       (clk_hr),
+    .clk_hr90p    (clk_hr90p),
+    .clk_hr3x     (clk_hr3x),
+    .rst_hr       (rst_hr),
+    .auto_pass    (hr_pass),
+    .auto_fail    (hr_fail),
+
     .gp_i({user_sw_n, nav_sw_n}),
-    .gp_o({led_user, lcd_backlight, lcd_dc, lcd_rst, lcd_cs}),
+    .gp_o({led_user_unused, lcd_backlight, lcd_dc, lcd_rst, lcd_cs}),
 
     .uart_rx_i(ser0_rx),
     .uart_tx_o(ser0_tx),
@@ -234,6 +263,14 @@ module top_sonata (
     .spi_rx_i(1'b0),
     .spi_tx_o(lcd_copi),
     .spi_sck_o(lcd_clk),
+
+    // HyperRAM:
+    .HYPERRAM_DQ        (HYPERRAM_DQ   ),
+    .HYPERRAM_RWDS      (HYPERRAM_RWDS ),
+    .HYPERRAM_CKP       (HYPERRAM_CKP  ),
+    .HYPERRAM_CKN       (HYPERRAM_CKN  ),
+    .HYPERRAM_nRST      (HYPERRAM_nRST ),
+    .HYPERRAM_CS        (HYPERRAM_CS   ),
 
     // I2C bus 0
     .i2c0_scl_i       (scl0_i),
@@ -270,7 +307,17 @@ module top_sonata (
     .clk_usb    (clk_usb),
     .rst_usb_n  (rst_usb_n),
     .clk_peri   (clk_peri),
-    .rst_peri_n (rst_peri_n)
+    .rst_peri_n (rst_peri_n),
+
+    .clk_hr     (clk_hr     ),
+    .clk_hr90p  (clk_hr90p  ),
+    .clk_hr3x   (clk_hr3x   ),
+    .rst_hr     (rst_hr     ),
+                           
+    .hb         (hb         ),
+    .hb90p      (hb90p      ),
+    .hb3x       (hb3x       ),
+    .locked     (locked     )
   );
 
 endmodule

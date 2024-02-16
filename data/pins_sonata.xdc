@@ -103,6 +103,23 @@ set_property IOSTANDARD LVCMOS33 [get_ports MB5]
 set_property PACKAGE_PIN U2 [get_ports MB6]
 set_property IOSTANDARD LVCMOS33 [get_ports MB6]
 
+# HyperRAM
+set_property -dict { PACKAGE_PIN   B1  IOSTANDARD   LVCMOS18 } [get_ports { HYPERRAM_DQ[0] }];
+set_property -dict { PACKAGE_PIN   E2  IOSTANDARD   LVCMOS18 } [get_ports { HYPERRAM_DQ[1] }];
+set_property -dict { PACKAGE_PIN   H1  IOSTANDARD   LVCMOS18 } [get_ports { HYPERRAM_DQ[2] }];
+set_property -dict { PACKAGE_PIN   A1  IOSTANDARD   LVCMOS18 } [get_ports { HYPERRAM_DQ[3] }];
+set_property -dict { PACKAGE_PIN   E1  IOSTANDARD   LVCMOS18 } [get_ports { HYPERRAM_DQ[4] }];
+set_property -dict { PACKAGE_PIN   B2  IOSTANDARD   LVCMOS18 } [get_ports { HYPERRAM_DQ[5] }];
+set_property -dict { PACKAGE_PIN   C1  IOSTANDARD   LVCMOS18 } [get_ports { HYPERRAM_DQ[6] }];
+set_property -dict { PACKAGE_PIN   D2  IOSTANDARD   LVCMOS18 } [get_ports { HYPERRAM_DQ[7] }];
+
+set_property -dict { PACKAGE_PIN   F1  IOSTANDARD   LVCMOS18 } [get_ports { HYPERRAM_RWDS }];
+set_property -dict { PACKAGE_PIN   H2  IOSTANDARD   LVCMOS18 } [get_ports { HYPERRAM_CKP }];
+set_property -dict { PACKAGE_PIN   G2  IOSTANDARD   LVCMOS18 } [get_ports { HYPERRAM_CKN }];
+set_property -dict { PACKAGE_PIN   C2  IOSTANDARD   LVCMOS18 } [get_ports { HYPERRAM_nRST }];
+set_property -dict { PACKAGE_PIN   J2  IOSTANDARD   LVCMOS18 } [get_ports { HYPERRAM_CS }];
+
+
 # R-Pi Header
 
 # GPIO/I2C bus
