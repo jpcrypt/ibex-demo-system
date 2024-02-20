@@ -697,7 +697,7 @@ OpenHBMC U_HBMC (
   .clk_iserdes          (clk_hr3x       ),
 
   .s_axi_aclk           (clk_peri_i),
-  .s_axi_aresetn        (~hr_reset),
+  .s_axi_aresetn        (~rst_hr),
 
   .s_axi_awid           (0),
   .s_axi_awaddr         (awaddr),
@@ -750,6 +750,50 @@ OpenHBMC U_HBMC (
   .hb_reset_n           (HYPERRAM_nRST ),
   .hb_cs_n              (HYPERRAM_CS   ) 
 );
+
+
+
+`ifdef ILA_TL_AXI
+    ila_tl_axi U_ila_tl_axi (
+            .clk            (clk_peri_i),
+            .probe0         (awaddr),           // 31:0
+            .probe1         (awvalid),
+            .probe2         (awready),
+            .probe3         (wdata),            // 31:0
+            .probe4         (wvalid),
+            .probe5         (wready),
+            .probe6         (bresp),            // 1:0
+            .probe7         (bvalid),
+            .probe8         (bready),
+            .probe9         (araddr),           // 31:0
+            .probe10        (arvalid),
+            .probe11        (arready),
+            .probe12        (rdata),            // 31:0
+            .probe13        (rresp),            // 1:0
+            .probe14        (rvalid),
+            .probe15        (rready),
+
+            .probe16        (usb_tl_i.a_valid),
+            .probe17        (usb_tl_i.a_opcode),        // 2:0
+            .probe18        (usb_tl_i.a_param),         // 2:0
+            .probe19        (usb_tl_i.a_size),          // 3:0
+            .probe20        (usb_tl_i.a_source),        // 7:0
+            .probe21        (usb_tl_i.a_address),       // 31:0
+            .probe22        (usb_tl_i.a_mask),          // 3:0
+            .probe23        (usb_tl_i.a_data),          // 31:0
+            .probe24        (usb_tl_i.d_ready),
+
+            .probe25        (usb_tl_o.d_valid),
+            .probe26        (usb_tl_o.d_opcode),        // 2:0
+            .probe27        (usb_tl_o.d_param),         // 2:0
+            .probe28        (usb_tl_o.d_size),          // 3:0
+            .probe29        (usb_tl_o.d_source),        // 7:0
+            .probe30        (usb_tl_o.d_sink),
+            .probe31        (usb_tl_o.d_data),          // 31:0
+            .probe32        (usb_tl_o.d_error),
+            .probe33        (usb_tl_o.a_ready)
+    );
+`endif  
 
 
 
