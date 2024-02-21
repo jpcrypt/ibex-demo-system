@@ -572,6 +572,75 @@ i2c u_i2c(
 );
 */
 
+// write address:
+wire [31:0] awaddr;
+wire awvalid;
+wire awready;
+
+// write data:
+wire [31:0] wdata;
+wire wvalid;
+wire wready;
+
+// write response:
+wire [1:0] bresp;
+wire bvalid;
+wire bready;
+
+// read address:
+wire [31:0] araddr;
+wire arvalid;
+wire arready;
+
+// read data:
+wire [31:0] rdata;
+wire [1:0] rresp;
+wire rvalid;
+wire rready;
+
+
+`ifdef DIRECT_HR
+    hbmc_tl_axi_wrapper u_hbmc_tl_axi (
+        .clk_peri_i               (clk_peri_i),
+        .clk_hr                   (clk_hr         ),
+        .clk_hr90p                (clk_hr90p      ),
+        .clk_hr3x                 (clk_hr3x       ),
+        .rst_peri_ni              (rst_peri_ni),
+        .rst_hr                   (rst_hr),
+
+        // TL:
+        .tl_i                     (usb_tl_i),
+        .tl_o                     (usb_tl_o),
+
+        // HR:
+        .HYPERRAM_DQ              (HYPERRAM_DQ   ),
+        .HYPERRAM_RWDS            (HYPERRAM_RWDS ),
+        .HYPERRAM_CKP             (HYPERRAM_CKP  ),
+        .HYPERRAM_CKN             (HYPERRAM_CKN  ),
+        .HYPERRAM_nRST            (HYPERRAM_nRST ),
+        .HYPERRAM_CS              (HYPERRAM_CS   ),
+        // debug only:
+        .awaddr                   (awaddr  ),
+        .awvalid                  (awvalid ),
+        .awready                  (awready ),
+        .wdata                    (wdata   ),
+        .wvalid                   (wvalid  ),
+        .wready                   (wready  ),
+        .bresp                    (bresp   ),
+        .bvalid                   (bvalid  ),
+        .bready                   (bready  ),
+        .araddr                   (araddr  ),
+        .arvalid                  (arvalid ),
+        .arready                  (arready ),
+        .rdata                    (rdata   ),
+        .rresp                    (rresp   ),
+        .rvalid                   (rvalid  ),
+        .rready                   (rready  )
+    );
+
+
+`else
+
   //logic auto_pass;
   //logic auto_fail; 
   logic bresp_error; 
@@ -620,31 +689,6 @@ newreg u_newreg(
     .tl_i                     (usb_tl_i),
     .tl_o                     (usb_tl_o)
 );
-
-wire [31:0] awaddr;
-wire awvalid;
-wire awready;
-
-// write data:
-wire [31:0] wdata;
-wire wvalid;
-wire wready;
-
-// write response:
-wire [1:0] bresp;
-wire bvalid;
-wire bready;
-
-// read address:
-wire [31:0] araddr;
-wire arvalid;
-wire arready;
-
-// read data:
-wire [31:0] rdata;
-wire [1:0] rresp;
-wire rvalid;
-wire rready;
 
 
 simple_hyperram_axi_rwtest U_hyperram_test(
@@ -750,6 +794,8 @@ OpenHBMC U_HBMC (
   .hb_reset_n           (HYPERRAM_nRST ),
   .hb_cs_n              (HYPERRAM_CS   ) 
 );
+
+`endif // DIRECT_HR
 
 
 

@@ -22,6 +22,7 @@ filesets:
       - rtl/newreg.sv
       - rtl/simple_hyperram_axi_rwtest.v
       - rtl/cdc_simple.v
+      - rtl/hbmc_tl_axi_wrapper.sv
     file_type: systemVerilogSource
 
   files_verilator_waiver:
@@ -61,7 +62,7 @@ targets:
       - tool_ascentlint  ? (files_ascentlint_waiver)
       - tool_veriblelint ? (files_veriblelint_waiver)
       - files_rtl
-    toplevel: newreg
+    toplevel: hbmc_tl_axi_wrapper
 
   lint:
     <<: *default_target

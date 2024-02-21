@@ -195,7 +195,7 @@ module clkgen_sonata  #(
 
   // make HR reset synchronous:
   (* ASYNC_REG = "TRUE" *) reg[1:0] rst_hr_pipe;
-  always @(posedge clk_hr) begin
+  always @(posedge clk_peri) begin
       if (~rst_sys_n) begin
           rst_hr_pipe <= 0;
           rst_hr <= 0;
