@@ -56,7 +56,7 @@ localparam pS_IDLE            = 2'd0;
 localparam pS_WRITE           = 2'd1;
 localparam pS_READ            = 2'd2;
 
-reg got_read;
+reg axi_req_processed;
 
 /*
 // AXI signals:
@@ -72,7 +72,7 @@ wire wready;
 
 // write response:
 wire [1:0] bresp;
-wire bvalid; // TODO: use!
+wire bvalid;
 wire bready = 1'b1;
 
 // read address:
@@ -96,7 +96,6 @@ assign tl_o_pre.d_size =    tl_i.a_size;
 assign tl_o_pre.d_source =  tl_i.a_source;
 assign tl_o_pre.d_param = 3'd0;
 assign tl_o_pre.d_sink = 1'd0;
-assign tl_o_pre.d_error = 1'd0; // TODO: ever need to assert this? use rresp / bresp...
 
 
 tlul_rsp_intg_gen #(
@@ -106,6 +105,33 @@ tlul_rsp_intg_gen #(
   .tl_i(tl_o_pre),
   .tl_o(tl_o)
 );
+
+
+wire awdone_condition = (awready && awvalid);
+wire wdone_condition = (wready && wvalid);
+wire ardone_condition = (arready && arvalid);
+reg awdone_r;
+reg wdone_r;
+reg ardone_r;
+wire awdone = awdone_r || awdone_condition;
+wire wdone  = wdone_r  || wdone_condition;
+wire ardone = ardone_r || ardone_condition;
+
+always @(posedge clk_peri_i) begin
+    if (state == pS_IDLE) begin
+        awdone_r <= 1'b0;
+        wdone_r <= 1'b0;
+        ardone_r <= 1'b0;
+    end
+    else begin
+        if (awdone_condition)
+            awdone_r <= 1'b1;
+        if (wdone_condition)
+            wdone_r <= 1'b1;
+        if (ardone_condition)
+            ardone_r <= 1'b1;
+    end
+end
 
 
 always @(posedge clk_peri_i) begin
@@ -126,13 +152,14 @@ always @(posedge clk_peri_i) begin
         case (state)
 
             pS_IDLE: begin
-                got_read <= 1'b0;
+                axi_req_processed <= 1'b0;
                 if (tl_i.a_valid) begin
+                    axi_req_processed <= 1'b0;
                     if ((tl_i.a_opcode == PutFullData) || (tl_i.a_opcode == PutPartialData)) begin
                         state <= pS_WRITE;
                         tl_o_pre.d_opcode <= AccessAck;
-                        tl_o.a_ready <= 1'b0;
-                        tl_o_pre.d_valid <= 1'b1;
+                        tl_o_pre.a_ready <= 1'b0;
+                        //tl_o_pre.d_valid <= 1'b1; need to wait to see response first
                         wdata <= tl_i.a_data;
                         awaddr <= tl_i.a_address - 32'h8000_5000; // TODO: how to support full memory space?
                         awvalid <= 1'b1;
@@ -143,13 +170,12 @@ always @(posedge clk_peri_i) begin
                         state <= pS_READ;
                         araddr <= tl_i.a_address - 32'h8000_5000; // TODO: how to support full memory space?
                         arvalid <= 1'b1;
-                        tl_o.a_ready <= 1'b0;
-                        got_read <= 1'b0;
+                        tl_o_pre.a_ready <= 1'b0;
                     end
-                    // TODO: error response for other opcodes
+                    // TODO: error response for other opcodes?
                 end
                 else begin
-                    tl_o.a_ready <= 1'b1;
+                    tl_o_pre.a_ready <= 1'b1;
                     tl_o_pre.d_valid <= 1'b0;
                 end
             end
@@ -160,11 +186,19 @@ always @(posedge clk_peri_i) begin
                     awvalid <= 0;
                 if (wready)
                     wvalid <= 0;
-                if (tl_i.d_ready) // ensuring tl_i.d_ready is set before moving on and de-asserting d_valid
-                    tl_o_pre.d_valid <= 1'b0;
-                if (awready && wready && ~tl_o_pre.d_valid) begin
+                if (bvalid) begin
+                    axi_req_processed <= 1'b1;
+                    if (bresp == 0)
+                        tl_o_pre.d_error <= 1'b0;
+                    else
+                        tl_o_pre.d_error <= 1'b1;
+                end
+                if (awdone && wdone && (bvalid || axi_req_processed))
+                    tl_o_pre.d_valid <= 1'b1;
+                if (tl_o_pre.d_valid && tl_i.d_ready) begin
                     state <= pS_IDLE;
-                    tl_o.a_ready <= 1'b1;
+                    tl_o_pre.d_valid <= 1'b0;
+                    tl_o_pre.a_ready <= 1'b1;
                 end
             end
 
@@ -174,13 +208,17 @@ always @(posedge clk_peri_i) begin
                     arvalid <= 1'b0;
                 if (rvalid) begin
                     tl_o_pre.d_data <= rdata;
-                    got_read <= 1'b1;
+                    axi_req_processed <= 1'b1;
+                    if (rresp == 0)
+                        tl_o_pre.d_error <= 1'b0;
+                    else
+                        tl_o_pre.d_error <= 1'b1;
                 end
-                if (tl_i.d_ready && (rvalid || got_read)) begin
+                if (tl_i.d_ready && ardone && (rvalid || axi_req_processed)) begin
                     state <= pS_IDLE;
                     tl_o_pre.d_opcode <= AccessAckData;
                     tl_o_pre.d_valid <= 1'b1;
-                    tl_o.a_ready <= 1'b1;
+                    tl_o_pre.a_ready <= 1'b1;
                 end
 
             end
