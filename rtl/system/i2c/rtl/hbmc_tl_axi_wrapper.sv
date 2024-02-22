@@ -55,6 +55,7 @@ reg [1:0] state;
 localparam pS_IDLE            = 2'd0;
 localparam pS_WRITE           = 2'd1;
 localparam pS_READ            = 2'd2;
+localparam pS_ERROR           = 2'd3;
 
 reg axi_req_processed;
 
@@ -133,6 +134,8 @@ always @(posedge clk_peri_i) begin
     end
 end
 
+localparam pTIMER_WIDTH = 18;
+reg [pTIMER_WIDTH-1:0] timer;
 
 always @(posedge clk_peri_i) begin
     if (~rst_peri_ni) begin
@@ -153,6 +156,7 @@ always @(posedge clk_peri_i) begin
 
             pS_IDLE: begin
                 axi_req_processed <= 1'b0;
+                timer <= 0;
                 if (tl_i.a_valid) begin
                     axi_req_processed <= 1'b0;
                     if ((tl_i.a_opcode == PutFullData) || (tl_i.a_opcode == PutPartialData)) begin
@@ -168,11 +172,17 @@ always @(posedge clk_peri_i) begin
 
                     else if (tl_i.a_opcode == Get) begin
                         state <= pS_READ;
+                        tl_o_pre.d_opcode <= AccessAckData;
                         araddr <= tl_i.a_address - 32'h8000_5000; // TODO: how to support full memory space?
                         arvalid <= 1'b1;
                         tl_o_pre.a_ready <= 1'b0;
                     end
-                    // TODO: error response for other opcodes?
+
+                    else begin
+                        state <= pS_ERROR;
+                        tl_o_pre.d_opcode <= AccessAck; // TODO: ?
+                    end
+
                 end
                 else begin
                     tl_o_pre.a_ready <= 1'b1;
@@ -182,6 +192,7 @@ always @(posedge clk_peri_i) begin
 
             pS_WRITE: begin
                 // NOTE: could speed up here by assuming the write will go through? seems dangerous
+                timer <= timer + 1;
                 if (awready)
                     awvalid <= 0;
                 if (wready)
@@ -195,7 +206,9 @@ always @(posedge clk_peri_i) begin
                 end
                 if (awdone && wdone && (bvalid || axi_req_processed))
                     tl_o_pre.d_valid <= 1'b1;
-                if (tl_o_pre.d_valid && tl_i.d_ready) begin
+                if (timer == {pTIMER_WIDTH{1'b1}})
+                    state <= pS_ERROR;
+                else if (tl_o_pre.d_valid && tl_i.d_ready) begin
                     state <= pS_IDLE;
                     tl_o_pre.d_valid <= 1'b0;
                     tl_o_pre.a_ready <= 1'b1;
@@ -204,6 +217,7 @@ always @(posedge clk_peri_i) begin
 
             pS_READ: begin
                 // this adds an additional cycle of latency on reads but keeps RTL simple
+                timer <= timer + 1;
                 if (arready)
                     arvalid <= 1'b0;
                 if (rvalid) begin
@@ -214,14 +228,23 @@ always @(posedge clk_peri_i) begin
                     else
                         tl_o_pre.d_error <= 1'b1;
                 end
+                if (timer == {pTIMER_WIDTH{1'b1}})
+                    state <= pS_ERROR;
                 if (tl_i.d_ready && ardone && (rvalid || axi_req_processed)) begin
                     state <= pS_IDLE;
-                    tl_o_pre.d_opcode <= AccessAckData;
                     tl_o_pre.d_valid <= 1'b1;
                     tl_o_pre.a_ready <= 1'b1;
                 end
-
             end
+
+            pS_ERROR: begin
+                tl_o_pre.d_error <= 1'b1;
+                if (tl_i.d_ready) begin
+                    state <= pS_IDLE;
+                    tl_o_pre.d_valid <= 1'b1;
+                end
+            end
+
 
         endcase
     end

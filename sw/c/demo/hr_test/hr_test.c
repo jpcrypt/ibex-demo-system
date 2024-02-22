@@ -25,9 +25,9 @@
 #define REG_LB_STOP_ADDR      0x30u
 #define REG_LB_START_ADDR     0x34u
 
-//#define STOP_ADDRESS 10000
-#define STOP_ADDRESS 64
-#define REPEATS 10000
+#define START_ADDRESS 0
+#define STOP_ADDRESS 4096
+#define REPEATS 1000
 
 uint32_t i, j, errors, rdata;
 
@@ -39,27 +39,29 @@ int main(void) {
 
   /*
   puts("W\n");
-  DEV_WRITE(HR_BASE, 0x12345678u);
-  DEV_WRITE(HR_BASE+4, 0x5a5a5a5au);
-  DEV_WRITE(HR_BASE+8, 0x12345678u);
+  DEV_WRITE(HR_BASE+START_ADDRESS+0, 0x12345678u);
+  DEV_WRITE(HR_BASE+START_ADDRESS+4, 0x5a5a5a5au);
+  DEV_WRITE(HR_BASE+START_ADDRESS+8, 0xffff3333u);
 
   puts("R\n");
-  puthex(DEV_READ(HR_BASE));
+  puthex(DEV_READ(HR_BASE+START_ADDRESS+0));
   puts("\n");
-  puthex(DEV_READ(HR_BASE+4));
+  puthex(DEV_READ(HR_BASE+START_ADDRESS+4));
   puts("\n");
-  puthex(DEV_READ(HR_BASE+8));
+  puthex(DEV_READ(HR_BASE+START_ADDRESS+8));
   */
 
   errors = 0;
 
   for (i = 0; i < REPEATS; i = i + 1) {
       puts(".");
-      for (j = 0; j < STOP_ADDRESS; j = j + 4) {
+      for (j = START_ADDRESS; j < STOP_ADDRESS; j = j + 4) {
+          //puthex(j);
+          //puts("\n");
           DEV_WRITE(HR_BASE+j, (i^j));
       }
       puts(",");
-      for (j = 0; j < STOP_ADDRESS; j = j + 4) {
+      for (j = START_ADDRESS; j < STOP_ADDRESS; j = j + 4) {
           rdata = DEV_READ(HR_BASE+j);
           if (rdata != (i^j)) {
               errors = errors + 1;
@@ -67,13 +69,17 @@ int main(void) {
               puthex(i^j);
               puts(", got ");
               puthex(rdata);
+              puts(" at address ");
+              puthex(j);
               puts("\n");
+              //if (errors > 32) break;
           }
       }
   }
   puts("\nErrors: ");
   puthex(errors);
   puts("\n");
+  //
 
   uint64_t end_time = timer_read() + 10 * 50 * 1000 * 1000;
   while (timer_read() < end_time);
