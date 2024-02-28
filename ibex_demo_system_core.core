@@ -12,6 +12,7 @@ filesets:
       - lowrisc:tlul:adapter_host
       - lowrisc:tlul:adapter_reg
       - pulp:riscv:debug_module
+      - openhbmc:hyperram:controller
     files:
       - rtl/system/jtag_id_pkg.sv
       - rtl/system/ibex_demo_system.sv

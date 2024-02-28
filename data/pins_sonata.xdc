@@ -152,3 +152,50 @@ set_property CONFIG_VOLTAGE 3.3 [current_design]
 set_property BITSTREAM.GENERAL.COMPRESS TRUE [current_design]
 
 set_property CLOCK_DEDICATED_ROUTE FALSE [get_nets tck_i]
+
+############################################################################
+# HyperRAM, adapted (ports renamed; set current_instance) from OpenHBMC.xdc:
+############################################################################
+current_instance u_ibex_demo_system/u_hbmc_tl_axi/U_HBMC
+
+# Set output false path, timings are met by design
+set_false_path -to [get_ports HYPERRAM_CKP]
+set_false_path -to [get_ports HYPERRAM_CKN]
+set_false_path -to [get_ports HYPERRAM_RWDS]
+set_false_path -to [get_ports HYPERRAM_DQ[*]]
+
+# Set input false path. DQ[*] and RWDS are supposed to
+# be fully asynchronous for the data recovery logic
+set_false_path -from [get_ports HYPERRAM_RWDS]
+set_false_path -from [get_ports HYPERRAM_DQ[*]]
+
+#----------------------------------------------------------------------------
+
+# Pack 'cs_n' and 'reset_n' registers in IOBs for best output timings
+set_property IOB TRUE [get_cells -hierarchical cs_n_reg]
+set_property IOB TRUE [get_cells -hierarchical reset_n_reg]
+
+# False path for 'hb_cs_n' and 'hb_reset_n'
+set_false_path -to [get_ports HYPERRAM_CS]
+set_false_path -to [get_ports HYPERRAM_nRST]
+
+#----------------------------------------------------------------------------
+
+# Single bit synchronizer false path
+set_false_path -to [get_pins -hierarchical *d_sync_reg*[0]/D]
+
+#----------------------------------------------------------------------------
+
+# Asynchronous reset synchronizer false path
+set_false_path -through [get_pins -of_objects [get_cells -hierarchical hbmc_arst_sync*] -filter {NAME =~ *arst}]
+
+#----------------------------------------------------------------------------
+
+# Set minimum period of 'clk_hbmc_0' (200MHz)
+set clk_hbmc_0_min_period 5.000
+
+# Set max delay constraint for 'hbmc_bus_sync' data path for at least 2 stages of single bit synchronizer (PERIOD * 2)
+set_max_delay [expr {$clk_hbmc_0_min_period * 2}] -through [get_pins -of_objects [get_cells -hierarchical hbmc_bus_sync*] -filter {NAME =~ *src_data*}]
+
+#----------------------------------------------------------------------------
+
