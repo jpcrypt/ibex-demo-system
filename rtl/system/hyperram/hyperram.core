@@ -2,23 +2,15 @@ CAPI=2:
 # Copyright lowRISC contributors.
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
-name: "lowrisc:ip:i2c:0.1"
-description: "i2c"
+name: "lowrisc:ip:hyperram:0.1"
+description: "hyperram controller wrapper"
 filesets:
   files_rtl:
     depend:
       - lowrisc:constants:top_pkg
       - lowrisc:prim:alert
-      - lowrisc:prim:reg_we_check
-      - lowrisc:prim:subreg
-      - lowrisc:tlul:adapter_reg
-      - lowrisc:ip:i2c_pkg
     files:
-      - rtl/i2c_reg_pkg.sv
-      - rtl/i2c_reg_top.sv
-      - rtl/i2c_core.sv
-      - rtl/i2c_fsm.sv
-      - rtl/i2c.sv
+      - rtl/hbmc_tl_axi_wrapper.sv
     file_type: systemVerilogSource
 
   files_verilator_waiver:
@@ -27,7 +19,7 @@ filesets:
       - lowrisc:lint:common
       - lowrisc:lint:comportable
     files:
-      - lint/i2c.vlt
+      - lint/hyperram.vlt
     file_type: vlt
 
   files_ascentlint_waiver:
@@ -35,9 +27,6 @@ filesets:
       # common waivers
       - lowrisc:lint:common
       - lowrisc:lint:comportable
-    files:
-      - lint/i2c.waiver
-    file_type: waiver
 
   files_veriblelint_waiver:
     depend:
@@ -58,7 +47,7 @@ targets:
       - tool_ascentlint  ? (files_ascentlint_waiver)
       - tool_veriblelint ? (files_veriblelint_waiver)
       - files_rtl
-    toplevel: i2c
+    toplevel: hbmc_tl_axi_wrapper
 
   lint:
     <<: *default_target

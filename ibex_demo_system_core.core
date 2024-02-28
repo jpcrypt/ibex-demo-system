@@ -8,7 +8,7 @@ filesets:
   files_rtl_demo_system:
     depend:
       - lowrisc:ibex:ibex_top
-      - lowrisc:ip:i2c
+      - lowrisc:ip:hyperram
       - lowrisc:tlul:adapter_host
       - lowrisc:tlul:adapter_reg
       - pulp:riscv:debug_module

@@ -599,204 +599,43 @@ wire rvalid;
 wire rready;
 
 
-`ifdef DIRECT_HR
-    hbmc_tl_axi_wrapper u_hbmc_tl_axi (
-        .clk_peri_i               (clk_peri_i),
-        .clk_hr                   (clk_hr         ),
-        .clk_hr90p                (clk_hr90p      ),
-        .clk_hr3x                 (clk_hr3x       ),
-        .rst_peri_ni              (rst_peri_ni),
-        .rst_hr                   (rst_hr),
-
-        // TL:
-        .tl_i                     (usb_tl_i),
-        .tl_o                     (usb_tl_o),
-
-        // HR:
-        .HYPERRAM_DQ              (HYPERRAM_DQ   ),
-        .HYPERRAM_RWDS            (HYPERRAM_RWDS ),
-        .HYPERRAM_CKP             (HYPERRAM_CKP  ),
-        .HYPERRAM_CKN             (HYPERRAM_CKN  ),
-        .HYPERRAM_nRST            (HYPERRAM_nRST ),
-        .HYPERRAM_CS              (HYPERRAM_CS   ),
-        // debug only:
-        .awaddr                   (awaddr  ),
-        .awvalid                  (awvalid ),
-        .awready                  (awready ),
-        .wdata                    (wdata   ),
-        .wvalid                   (wvalid  ),
-        .wready                   (wready  ),
-        .bresp                    (bresp   ),
-        .bvalid                   (bvalid  ),
-        .bready                   (bready  ),
-        .araddr                   (araddr  ),
-        .arvalid                  (arvalid ),
-        .arready                  (arready ),
-        .rdata                    (rdata   ),
-        .rresp                    (rresp   ),
-        .rvalid                   (rvalid  ),
-        .rready                   (rready  )
-    );
-
-
-`else
-
-  //logic auto_pass;
-  //logic auto_fail; 
-  logic bresp_error; 
-  logic rresp_error;
-  logic [31:0] auto_errors;
-  logic [31:0] auto_error_addr;
-  logic [31:0] auto_iterations;
-  logic [31:0] auto_current_addr;
-  logic [31:0] hbmc_rdata;
-  logic  hbmc_idle;
-  logic auto_lfsr_mode;
-  logic auto_clear_fail;
-  logic lb_manual;
-  logic [31:0] auto_stop_addr;
-  logic [31:0] auto_start_addr;
-  logic hbmc_write;
-  logic hbmc_read;
-  logic [31:0] hbmc_wdata;
-
-
-newreg u_newreg(
-    .clk_i                    (clk_peri_i),
-    .rst_ni                   (rst_peri_ni),
-
-    // HR simple R/W test interface:
-    .I_auto_pass              (auto_pass         ),
-    .I_auto_fail              (auto_fail         ),
-    .bresp_error              (bresp_error       ),
-    .rresp_error              (rresp_error       ),
-    .I_auto_errors            (auto_errors       ),
-    .I_auto_error_addr        (auto_error_addr   ),
-    .I_auto_iterations        (auto_iterations   ),
-    .I_auto_current_addr      (auto_current_addr ),
-    .hbmc_rdata               (hbmc_rdata        ),
-    .hbmc_idle                (hbmc_idle         ),
-    .O_auto_lfsr_mode         (auto_lfsr_mode    ),
-    .O_auto_clear_fail        (auto_clear_fail   ),
-    .O_lb_manual              (lb_manual         ),
-    .O_auto_stop_addr         (auto_stop_addr    ),
-    .O_auto_start_addr        (auto_start_addr   ),
-    .hbmc_write               (hbmc_write        ),
-    .hbmc_read                (hbmc_read         ),
-    .hbmc_wdata               (hbmc_wdata        ),
+hbmc_tl_axi_wrapper u_hbmc_tl_axi (
+    .clk_peri_i               (clk_peri_i),
+    .clk_hr                   (clk_hr         ),
+    .clk_hr90p                (clk_hr90p      ),
+    .clk_hr3x                 (clk_hr3x       ),
+    .rst_peri_ni              (rst_peri_ni),
+    .rst_hr                   (rst_hr),
 
     // TL:
     .tl_i                     (usb_tl_i),
-    .tl_o                     (usb_tl_o)
+    .tl_o                     (usb_tl_o),
+
+    // HR:
+    .HYPERRAM_DQ              (HYPERRAM_DQ   ),
+    .HYPERRAM_RWDS            (HYPERRAM_RWDS ),
+    .HYPERRAM_CKP             (HYPERRAM_CKP  ),
+    .HYPERRAM_CKN             (HYPERRAM_CKN  ),
+    .HYPERRAM_nRST            (HYPERRAM_nRST ),
+    .HYPERRAM_CS              (HYPERRAM_CS   ),
+    // debug only:
+    .awaddr                   (awaddr  ),
+    .awvalid                  (awvalid ),
+    .awready                  (awready ),
+    .wdata                    (wdata   ),
+    .wvalid                   (wvalid  ),
+    .wready                   (wready  ),
+    .bresp                    (bresp   ),
+    .bvalid                   (bvalid  ),
+    .bready                   (bready  ),
+    .araddr                   (araddr  ),
+    .arvalid                  (arvalid ),
+    .arready                  (arready ),
+    .rdata                    (rdata   ),
+    .rresp                    (rresp   ),
+    .rvalid                   (rvalid  ),
+    .rready                   (rready  )
 );
-
-
-simple_hyperram_axi_rwtest U_hyperram_test(
-    .clk                            (clk_peri_i     ),
-    .reset                          (~rst_peri_ni   ),
-    .active_usb                     (~lb_manual     ),
-    .single_write_usb               (hbmc_write     ),
-    .single_read_usb                (hbmc_read      ),
-    .single_wdata                   (hbmc_wdata     ),
-    .single_rdata                   (hbmc_rdata     ),
-    .clear_fail                     (auto_clear_fail),
-    .lfsr_mode                      (auto_lfsr_mode ),
-    .pass                           (auto_pass      ),
-    .fail                           (auto_fail      ),
-    .iteration                      (auto_iterations),
-    .current_addr                   (auto_current_addr),
-    .total_errors                   (auto_errors    ),
-    .error_addr                     (auto_error_addr),
-    .addr_start                     (auto_start_addr ),
-    .addr_stop                      (auto_stop_addr),
-    .rresp_error                    (rresp_error ),
-    .bresp_error                    (bresp_error ),
-    .idle                           (hbmc_idle),
-
-    .awaddr                         (awaddr  ),
-    .awvalid                        (awvalid ),
-    .awready                        (awready ),
-                                            
-    .wdata                          (wdata   ),
-    .wvalid                         (wvalid  ),
-    .wready                         (wready  ),
-                                            
-    .bresp                          (bresp   ),
-    .bvalid                         (bvalid  ),
-    .bready                         (bready  ),
-                                            
-    .araddr                         (araddr  ),
-    .arvalid                        (arvalid ),
-    .arready                        (arready ),
-                                            
-    .rdata                          (rdata   ),
-    .rresp                          (rresp   ),
-    .rvalid                         (rvalid  ),
-    .rready                         (rready  )
-);
-
-OpenHBMC U_HBMC (
-  .clk_hbmc_0           (clk_hr         ),
-  .clk_hbmc_90          (clk_hr90p      ),
-  .clk_iserdes          (clk_hr3x       ),
-
-  .s_axi_aclk           (clk_peri_i),
-  .s_axi_aresetn        (~rst_hr),
-
-  .s_axi_awid           (0),
-  .s_axi_awaddr         (awaddr),
-  .s_axi_awlen          (0),
-  .s_axi_awsize         (4),
-  .s_axi_awburst        (0),
-  .s_axi_awlock         (0),
-  .s_axi_awregion       (0),
-  .s_axi_awcache        (0),
-  .s_axi_awqos          (0),
-  .s_axi_awprot         (0),
-  .s_axi_awvalid        (awvalid),
-  .s_axi_awready        (awready),
-
-  .s_axi_wdata          (wdata  ),
-  .s_axi_wstrb          (4'b1111),
-  .s_axi_wlast          (1'b1   ),
-  .s_axi_wvalid         (wvalid ),
-  .s_axi_wready         (wready ),
-
-  .s_axi_bid            (),             // unused (constant)
-  .s_axi_bresp          (bresp  ),
-  .s_axi_bvalid         (bvalid ),
-  .s_axi_bready         (bready ),
-
-  .s_axi_arid           (0),
-  .s_axi_araddr         (araddr),
-  .s_axi_arlen          (0),
-  .s_axi_arsize         (4),
-  .s_axi_arburst        (0),
-  .s_axi_arlock         (0),
-  .s_axi_arregion       (0),
-  .s_axi_arcache        (0),
-  .s_axi_arqos          (0),
-  .s_axi_arprot         (0),
-  .s_axi_arvalid        (arvalid),
-  .s_axi_arready        (arready),
-
-  .s_axi_rid            (),             // unused (constant)
-  .s_axi_rdata          (rdata  ),
-  .s_axi_rresp          (rresp  ),
-  .s_axi_rlast          (),             // unused (constant)
-  .s_axi_rvalid         (rvalid ),
-  .s_axi_rready         (rready ),
-
-  .hb_dq                (HYPERRAM_DQ   ),
-  .hb_rwds              (HYPERRAM_RWDS ),
-  .hb_ck_p              (HYPERRAM_CKP  ),
-  .hb_ck_n              (HYPERRAM_CKN  ),
-  .hb_reset_n           (HYPERRAM_nRST ),
-  .hb_cs_n              (HYPERRAM_CS   ) 
-);
-
-`endif // DIRECT_HR
-
 
 
 `ifdef ILA_TL_AXI
