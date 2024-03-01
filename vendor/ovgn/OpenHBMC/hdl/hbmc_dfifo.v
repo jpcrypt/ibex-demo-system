@@ -47,10 +47,10 @@ module hbmc_dfifo #
 
     wire    [17:0]  dout;
     
+`ifdef XILINX_HBMC_DFIFO
     assign  fifo_rd_dout = dout[15:0];
     assign  fifo_rd_strb = dout[17:16];
-    
-    
+
     generate
         case (DATA_WIDTH)
             
@@ -138,6 +138,64 @@ module hbmc_dfifo #
             
         endcase
     endgenerate
+
+`else
+    // coding only the fifo_36b_18b_512w case that we need, for simplicity:
+    localparam pDATA_IN_WIDTH = 36;
+    localparam pDATA_OUT_WIDTH = 18;
+    localparam  FIFO_RD_DEPTH = 512;
+    wire fifo_wready;
+    wire fifo_rvalid;
+
+    assign fifo_wr_full = ~fifo_wready;
+    assign fifo_rd_empty = ~fifo_rvalid;
+
+    assign  fifo_rd_dout = dout[15:0];
+    assign  fifo_rd_strb = dout[17:16];
+    wire    [35:0]  din =   {
+                                fifo_wr_strb[1:0], fifo_wr_din[15:0],
+                                fifo_wr_strb[3:2], fifo_wr_din[31:16]
+                            };
+ 
+    // handle I/O width conversion:
+    wire [pDATA_IN_WIDTH-1:0] dout_wide;
+    reg  [pDATA_IN_WIDTH-1:0] dout_wide_r;
+    reg wide_read_cnt = 1'b0; 
+    wire fifo_wide_read = fifo_rd_ena & ~wide_read_cnt;
+    assign dout = wide_read_cnt ? dout_wide_r[pDATA_OUT_WIDTH-1:0] : dout_wide[pDATA_OUT_WIDTH*2-1 : pDATA_OUT_WIDTH];
+    always @(posedge fifo_rd_clk) begin
+        if (fifo_rd_ena) begin
+            wide_read_cnt <= ~wide_read_cnt;
+            if (fifo_wide_read)
+                dout_wide_r <= dout_wide;
+        end
+    end
+
+    prim_fifo_async #(
+      .Width                (pDATA_IN_WIDTH),
+      .Depth                (FIFO_RD_DEPTH),
+      // FWFT behaviour:
+      .OutputZeroIfEmpty    (0),
+      .OutputZeroIfInvalid  (0)
+    ) U_lowrisc_fifo (
+      // write port
+      .clk_wr_i             (fifo_wr_clk),
+      .rst_wr_ni            (~fifo_arst),
+      .wvalid_i             (fifo_wr_ena),
+      .wready_o             (fifo_wready),
+      .wdata_i              (din),
+      .wdepth_o             (),
+
+      // read port
+      .clk_rd_i             (fifo_rd_clk),
+      .rst_rd_ni            (~fifo_arst),
+      .rvalid_o             (fifo_rvalid),
+      .rready_i             (fifo_wide_read),
+      .rdata_o              (dout_wide),
+      .rdepth_o             ()
+    );
+    
+`endif
 
 endmodule
 

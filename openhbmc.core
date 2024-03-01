@@ -7,9 +7,8 @@ description: "OpenHBMC HyperRAM Controller Module"
 
 filesets:
   files_src:
-#    depend:
-#      - lowrisc:prim:fifo
-#      - lowrisc:prim:clock_inv
+    depend:
+      - lowrisc:prim:fifo
     files:
       - vendor/ovgn/OpenHBMC/hdl/OpenHBMC.v
       - vendor/ovgn/OpenHBMC/hdl/hbmc_ufifo.v
