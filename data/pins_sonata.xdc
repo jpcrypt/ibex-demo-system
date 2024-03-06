@@ -187,7 +187,7 @@ set_false_path -to [get_pins -hierarchical *d_sync_reg*[0]/D]
 #----------------------------------------------------------------------------
 
 # Asynchronous reset synchronizer false path
-set_false_path -through [get_pins -of_objects [get_cells -hierarchical hbmc_arst_sync*] -filter {NAME =~ *arst}]
+set_false_path -through [get_pins -of_objects [get_cells -hierarchical *hbmc_arst_sync*] -filter {NAME =~ *arst}]
 
 #----------------------------------------------------------------------------
 

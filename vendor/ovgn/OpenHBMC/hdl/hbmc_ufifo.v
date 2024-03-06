@@ -24,6 +24,9 @@
 `default_nettype none
 `timescale 1ps / 1ps
 
+`ifndef PRIM_DEFAULT_IMPL
+  `define PRIM_DEFAULT_IMPL prim_pkg::ImplGeneric
+`endif
 
 module hbmc_ufifo #
 (
@@ -45,12 +48,13 @@ module hbmc_ufifo #
     input   wire                        fifo_rd_ena,
     output  wire                        fifo_rd_empty
 );
-    
+
+    parameter prim_pkg::impl_e Impl = `PRIM_DEFAULT_IMPL;
     localparam  FIFO_RD_DEPTH = 512;
-    
+
     wire    [17:0]  din = {1'b0, fifo_wr_last, fifo_wr_din};
     wire    [8:0]   fifo_rd_used;
-    
+
 `ifdef XILINX_HBMC_UFIFO
     generate
         case (DATA_WIDTH)
@@ -151,17 +155,11 @@ module hbmc_ufifo #
     // coding only the fifo_18b_36b_512w case that we need, for simplicity:
     localparam pDATA_IN_WIDTH = 18;
     localparam pDATA_OUT_WIDTH = 36;
+    localparam pFIFO_WR_DEPTH = FIFO_RD_DEPTH * pDATA_OUT_WIDTH / pDATA_IN_WIDTH;
 
     wire    [pDATA_OUT_WIDTH-1:0]  dout;
     assign  fifo_rd_dout = {dout[15:0], dout[33:18]};
     assign  fifo_rd_last = dout[16];
-
-    wire fifo_wready;
-    wire fifo_rvalid;
-
-    assign fifo_wr_full = ~fifo_wready;
-    assign fifo_rd_empty = ~fifo_rvalid;
-
 
     // handle I/O width conversion:
     reg wide_write_cnt = 1'b0;
@@ -175,30 +173,105 @@ module hbmc_ufifo #
     wire fifo_wide_write = fifo_wr_ena && wide_write_cnt;
     wire [pDATA_OUT_WIDTH-1:0] fifo_wide_din = {din_r, din};
 
-    prim_fifo_async #(
-      .Width                (pDATA_OUT_WIDTH),
-      .Depth                (FIFO_RD_DEPTH),
-      // FWFT behaviour:
-      .OutputZeroIfEmpty    (0),
-      .OutputZeroIfInvalid  (0)
-    ) U_fifo (
-      // write port
-      .clk_wr_i             (fifo_wr_clk),
-      .rst_wr_ni            (~fifo_arst),
-      .wvalid_i             (fifo_wide_write),
-      .wready_o             (fifo_wready),
-      .wdata_i              (fifo_wide_din),
-      .wdepth_o             (),
+    if (Impl == prim_pkg::ImplGeneric) begin : gen_generic
+        wire fifo_wready;
+        wire fifo_rvalid;
+        assign fifo_wr_full = ~fifo_wready;
+        assign fifo_rd_empty = ~fifo_rvalid;
 
-      // read port
-      .clk_rd_i             (fifo_rd_clk),
-      .rst_rd_ni            (~fifo_arst),
-      .rvalid_o             (fifo_rvalid),
-      .rready_i             (fifo_rd_ena),
-      .rdata_o              (dout),
-      .rdepth_o             ()
-    );
+        prim_fifo_async #(
+          .Width                (pDATA_OUT_WIDTH),
+          .Depth                (FIFO_RD_DEPTH),
+          // FWFT behaviour:
+          .OutputZeroIfEmpty    (0),
+          .OutputZeroIfInvalid  (0)
+        ) U_fifo (
+          // write port
+          .clk_wr_i             (fifo_wr_clk),
+          .rst_wr_ni            (~fifo_arst),
+          .wvalid_i             (fifo_wide_write),
+          .wready_o             (fifo_wready),
+          .wdata_i              (fifo_wide_din),
+          .wdepth_o             (),
 
+          // read port
+          .clk_rd_i             (fifo_rd_clk),
+          .rst_rd_ni            (~fifo_arst),
+          .rvalid_o             (fifo_rvalid),
+          .rready_i             (fifo_rd_ena),
+          .rdata_o              (dout),
+          .rdepth_o             ()
+        );
+
+    end 
+    else if (Impl == prim_pkg::ImplXilinx) begin : gen_xilinx
+
+        // to avoid timing violations on reset net:
+        wire fifo_arst_wsync;
+        hbmc_arst_sync # (
+            .C_SYNC_STAGES ( 3 )
+        ) hbmc_arst_sync_inst (
+            .clk  ( fifo_wr_clk   ),
+            .arst ( fifo_arst     ),
+            .rst  ( fifo_arst_wsync )
+        );
+
+        // NOTE: in theory it should be possible to instantiate xpm_fifo_async
+        // with READ_DATA_WIDTH != WRITE_DATA_WIDTH (and avoid the *wide*
+        // logic above) but the resulting implementation doesn't work? This
+        // works, so didn't chase it down.
+        xpm_fifo_async #(
+            .CDC_SYNC_STAGES            (2),
+            .DOUT_RESET_VALUE           ("0"),
+            .ECC_MODE                   ("no_ecc"),
+            .FIFO_MEMORY_TYPE           ("auto"),
+            .FIFO_READ_LATENCY          (0),
+            .FIFO_WRITE_DEPTH           (256),
+            .FULL_RESET_VALUE           (0),
+            .PROG_EMPTY_THRESH          (10),
+            .PROG_FULL_THRESH           (10),
+            .RD_DATA_COUNT_WIDTH        (1),
+            .READ_DATA_WIDTH            (pDATA_OUT_WIDTH),
+            .READ_MODE                  ("fwft"),
+            .RELATED_CLOCKS             (0),
+            .SIM_ASSERT_CHK             (0),
+            .USE_ADV_FEATURES           ("0000"),
+            .WAKEUP_TIME                (0),
+            .WRITE_DATA_WIDTH           (pDATA_OUT_WIDTH),
+            .WR_DATA_COUNT_WIDTH        (1)
+        ) U_fifo (
+            .almost_empty               (),
+            .almost_full                (),
+            .data_valid                 (),
+            .dbiterr                    (),
+            .dout                       (dout),
+            .empty                      (fifo_rd_empty),
+            .full                       (fifo_wr_full),
+            .overflow                   (),
+            .prog_empty                 (),
+            .prog_full                  (),
+            .rd_data_count              (),
+            .rd_rst_busy                (),
+            .sbiterr                    (),
+            .underflow                  (),
+            .wr_ack                     (),
+            .wr_data_count              (),
+            .wr_rst_busy                (),
+            .din                        (fifo_wide_din),
+            .injectdbiterr              (),
+            .injectsbiterr              (),
+            .rd_clk                     (fifo_rd_clk),
+            .rd_en                      (fifo_rd_ena),
+            .rst                        (fifo_arst_wsync),
+            .sleep                      (1'b0),
+            .wr_clk                     (fifo_wr_clk),
+            .wr_en                      (fifo_wide_write)
+        );
+
+    end 
+    else begin : gen_failure
+        // TODO: Find code that works across tools and causes a compile failure
+    end
 
 `endif
     
