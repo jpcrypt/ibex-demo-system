@@ -95,11 +95,10 @@ module top_sonata (
   logic hb90p;
   logic hb3x;
   logic locked;
-  logic hr_pass;
-  logic hr_fail;
 
   logic [7:0] led_user_unused;
-  assign led_user = {hr_pass, hr_fail, 2'b00, hb3x, hb90p, hb, locked};
+  //assign led_user = {4'b00, hb3x, hb90p, hb, locked};
+  assign led_user = {7'b00, locked};
 
   initial begin
     reset_counter = 0;
@@ -249,8 +248,6 @@ module top_sonata (
     .clk_hr90p    (clk_hr90p),
     .clk_hr3x     (clk_hr3x),
     .rst_hr       (rst_hr),
-    .auto_pass    (hr_pass),
-    .auto_fail    (hr_fail),
 
     .gp_i({user_sw_n, nav_sw_n}),
     .gp_o({led_user_unused, lcd_backlight, lcd_dc, lcd_rst, lcd_cs}),

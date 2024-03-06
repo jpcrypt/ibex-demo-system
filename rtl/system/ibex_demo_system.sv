@@ -32,10 +32,6 @@ module ibex_demo_system #(
   input logic                 clk_hr3x,
   input logic                 rst_hr,
 
-  output logic                auto_pass,
-  output logic                auto_fail,
- 
-
   input  logic [GpiWidth-1:0] gp_i,
   output logic [GpoWidth-1:0] gp_o,
   output logic [PwmWidth-1:0] pwm_o,

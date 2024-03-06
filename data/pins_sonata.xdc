@@ -87,7 +87,7 @@ set_property PULLTYPE PULLUP [get_ports user_sw[*]]
 set_property PULLTYPE PULLUP [get_ports nav_sw[*]]
 
 
-set_output_delay -clock main_clk 0.000 [get_ports led_user]
+set_output_delay -clock mainclk 0.000 [get_ports led_user]
 
 
 # QWIIC and Arduino Shield
